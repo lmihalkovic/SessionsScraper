@@ -44,13 +44,25 @@ namespace SessionsFinder
 
         partial void SaveClicked (Foundation.NSObject sender) {
             reflectState(State.SAVING);
-            // store to file
-            using (System.IO.StreamWriter file = 
-                new System.IO.StreamWriter(@"/Users/laurent/Projects/apple-wwdc/build2016.json"))
-            {
-                file.Write(Results.TextStorage.ToString());
-            }
-            reflectState(State.SAVED);
+
+            var window = this.View.Window;
+
+            var dlg = new NSSavePanel ();
+            dlg.Title = "Save Result";
+            dlg.BeginSheet (window, (rslt) => {
+                // File selected?
+                if (rslt == 1) {
+                    var path = dlg.Url.Path;
+
+                    // store to file
+                    using (System.IO.StreamWriter file = 
+                        new System.IO.StreamWriter(@path))
+                    {
+                        file.Write(Results.TextStorage.ToString());
+                    }
+                    reflectState(State.SAVED);
+                }
+            });
         }
 
         partial void ExtractClicked(Foundation.NSObject sender) {
