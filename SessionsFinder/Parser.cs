@@ -22,7 +22,7 @@ namespace MicrosoftBuildExtractor
     using SessionsFinder;
 
      class CBuild {
-        public const string BASE = "https://channel9.msdn.com/";
+        public const string BASE = "https://channel9.msdn.com";
         public const string BUILD2016 = "Events/Build/2016";
         public const string BUILD2016_SESSIONS = "Events/Build/2016?sort=sequential&direction=desc&page={0}";
         public const int BUILD2016_COUNT = 50;
@@ -36,16 +36,16 @@ namespace MicrosoftBuildExtractor
 
         Dictionary<string, Session> sessions;
 
-        public Dictionary<string, Session> GetSessions() {
-            extract().Wait();
-            return sessions;
-        }
-
         public String GetId() {
             return "Build 2016";
         }
 
-        public String SerialiseToJson(Dictionary<string, Session> sessions) {
+        public Dictionary<string, Session> GetSessions(IProgress<ExtractorProgress> updater) {
+            extract(updater).Wait();
+            return sessions;
+        }
+
+        public String SerialiseToJson(IProgress<ExtractorProgress> updater, Dictionary<string, Session> sessions) {
             var list = new List<SessionDesc>();
             foreach(Session session in sessions.Values) {
                 if (session.VideoURL != null && session.VideoURL != "") {
@@ -68,10 +68,11 @@ namespace MicrosoftBuildExtractor
             return json;
         }
 
-        async Task extract() {
+        #region Internal helpers
+        async Task extract(IProgress<ExtractorProgress> updater) {
             try {
                 Task task = Task.Run(async delegate {
-                    Task<Dictionary<string, Session>> tsk = parseSimpleList();
+                    Task<Dictionary<string, Session>> tsk = parseSimpleList(updater);
                     Dictionary<string, Session> sessions = await tsk;
                     this.sessions = sessions;
                     Console.WriteLine("LIST-DONE");
@@ -79,7 +80,7 @@ namespace MicrosoftBuildExtractor
                 task.Wait();
 
                 task = Task.Run(async delegate {
-                    IEnumerable<Task<Session>> asyncOps = from session in sessions.Values select parseSessionDetails(session);
+                    IEnumerable<Task<Session>> asyncOps = from session in sessions.Values select parseSessionDetails(updater, session);
                     await Task.WhenAll(asyncOps);
                     Console.WriteLine("DETAILS-DONE");
                 });
@@ -90,18 +91,22 @@ namespace MicrosoftBuildExtractor
             }
         }
 
-        async Task<Dictionary<string, Session>> parseSimpleList() {
+        async Task<Dictionary<string, Session>> parseSimpleList(IProgress<ExtractorProgress> updater) {
             try {
-                List<String> urls = new List<String>() {
-                    "https://channel9.msdn.com/Events/Build/2016?sort=status&page=1&direction=asc#tab_sortBy_status" 
-                    , "https://channel9.msdn.com/Events/Build/2016?sort=status&page=2&direction=asc#tab_sortBy_status" 
-                    , "https://channel9.msdn.com/Events/Build/2016?sort=status&page=3&direction=asc#tab_sortBy_status" 
-                    , "https://channel9.msdn.com/Events/Build/2016?sort=status&page=4&direction=asc#tab_sortBy_status" 
+                var urls = new List<Tuple<String, String>>() {
+                    new Tuple<String, String>("Page 1", "https://channel9.msdn.com/Events/Build/2016?sort=status&page=1&direction=asc#tab_sortBy_status") 
+                    , new Tuple<String, String>("Page 2", "https://channel9.msdn.com/Events/Build/2016?sort=status&page=2&direction=asc#tab_sortBy_status") 
+                    , new Tuple<String, String>("Page 3", "https://channel9.msdn.com/Events/Build/2016?sort=status&page=3&direction=asc#tab_sortBy_status") 
+                    , new Tuple<String, String>("Page 4", "https://channel9.msdn.com/Events/Build/2016?sort=status&page=4&direction=asc#tab_sortBy_status") 
                 };
 
                 Dictionary<string, Session> sessions = new Dictionary<string, Session>();
+
+                var step = new ExtractorProgress();
                 foreach( var url in urls) {
-                    var data = await Loader.LoadPageSource(url, Constants.AsJSON);
+                    step.Message = string.Format("Loading {0}", url.Item1);
+                    updater.Report(step);
+                    var data = await Loader.LoadPageSource(url.Item2, Constants.AsJSON);
                     var source = data.ToString();
                     Parser.ProcessList(source, sessions);
                 }
@@ -113,16 +118,17 @@ namespace MicrosoftBuildExtractor
             }
         }
 
-        async Task<Session> parseSessionDetails(Session session) {
+        async Task<Session> parseSessionDetails(IProgress<ExtractorProgress> updater, Session session) {
             var url = CBuild.BASE + session.UniqueId;
             var data = await Loader.LoadPageSource(url, null);
+            updater.Report(new ExtractorProgress(string.Format(" + processing: {0}", session.UniqueId)));
             var source = data?.ToString();
             if(source != null) {                    
                 Parser.ProcessSession(source, session);
             }
             return session;
         }
-
+        #endregion
     }
         
     class Parser
@@ -222,9 +228,22 @@ namespace SessionsFinder
         public const string AsJSON = "application/json";
     }
 
+    public class ExtractorProgress {
+        public int Steps { get; set; }
+        public string Message { get; set; }
+        public int Step { get; set; }
+
+        public ExtractorProgress() {
+        }
+
+        public ExtractorProgress(String message) {
+            this.Message = message;
+        }
+    }
+
     public interface IExtractor {
-        Dictionary<String, Session> GetSessions();
-        String SerialiseToJson(Dictionary<string, Session> sessions);
+        Dictionary<String, Session> GetSessions(IProgress<ExtractorProgress> updater);
+        String SerialiseToJson(IProgress<ExtractorProgress> updater, Dictionary<string, Session> sessions);
         String GetId();
     }
 

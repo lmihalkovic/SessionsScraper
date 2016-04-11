@@ -76,9 +76,18 @@ namespace SessionsFinder
         }
 
         async Task loadAndParse(IExtractor extractor) {            
-            // Insert code here to initialize your application
-            Dictionary<String, Session> sessions = extractor.GetSessions();
-            var data = extractor.SerialiseToJson(sessions);
+
+            // progress tracker
+            var updater = new Progress<ExtractorProgress>();
+            updater.ProgressChanged += (sender, evt) => {
+                InvokeOnMainThread (() => {
+                    label.StringValue = evt.Message;
+                });
+            };
+
+            // task
+            Dictionary<String, Session> sessions = extractor.GetSessions(updater);
+            var data = extractor.SerialiseToJson(updater, sessions);
             var contents = new NSMutableAttributedString(data);
             InvokeOnMainThread (() => {
                 Results.TextStorage.SetString(contents);
