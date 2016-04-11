@@ -66,14 +66,6 @@ namespace MicrosoftBuildExtractor
             // save to JSON
             string json = JsonConvert.SerializeObject(all, Formatting.Indented);
             return json;
-//            MemoryStream stream1 = new MemoryStream();
-//            DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(SessionsDesc));
-//            ser.WriteObject(stream1, all);
-//
-//            stream1.Position = 0;
-//            StreamReader sr = new StreamReader(stream1);
-//
-//            return sr.ReadToEnd();
         }
 
         async Task extract() {
