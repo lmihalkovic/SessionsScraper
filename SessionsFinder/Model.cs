@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
+using Newtonsoft.Json;
+
 namespace DataModel
 {
 
@@ -15,14 +17,18 @@ namespace DataModel
 
     [DataContract]
     public class SessionsDesc {
-        [DataMember(Name="sessions")]
-        public SessionDesc[] Sessions { get; set; } = new SessionDesc[]{};
-
+        [JsonProperty(Order = 1)]
         [DataMember(Name="tracks")]
         public string[] Tracks { get; set; } = new string[]{};
 
+        [JsonProperty(Order = 2)]
         [DataMember(Name="updated")]
         public string Updated { get; set; }
+
+        [JsonProperty(Order = 3)]
+        [DataMember(Name="sessions")]
+        public SessionDesc[] Sessions { get; set; } = new SessionDesc[]{};
+
     }
 
     [DataContract(Name="session")]

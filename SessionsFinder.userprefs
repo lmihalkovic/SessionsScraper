@@ -1,17 +1,18 @@
 ﻿<Properties StartupItem="SessionsFinder/SessionsFinder.csproj">
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workbench ActiveDocument="SessionsFinder/Model.cs">
     <Files>
-      <File FileName="SessionsFinder/AppDelegate.cs" Line="30" Column="1" />
-      <File FileName="SessionsFinder/Parser.cs" Line="57" Column="1" />
+      <File FileName="SessionsFinder/AppDelegate.cs" Line="22" Column="13" />
       <File FileName="packages/HtmlAgilityPack.1.4.9/readme.txt" Line="1" Column="1" />
+      <File FileName="SessionsFinder/ViewController.cs" Line="100" Column="21" />
+      <File FileName="SessionsFinder/Info.plist" />
+      <File FileName="SessionsFinder/Model.cs" Line="4" Column="20" NotebookId="1" />
+      <File FileName="SessionsFinder/ViewController.designer.cs" Line="1" Column="1" NotebookId="1" />
+      <File FileName="SessionsFinder/Parser.cs" Line="69" Column="1" NotebookId="1" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
-    <BreakpointStore>
-      <Breakpoint file="/Users/laurent/Work/Projects/apple-wwdc/Tools/SessionsFinder/SessionsFinder/AppDelegate.cs" line="30" column="1" />
-      <Breakpoint file="/Users/laurent/Work/Projects/apple-wwdc/Tools/SessionsFinder/SessionsFinder/Parser.cs" line="49" column="1" />
-    </BreakpointStore>
+    <BreakpointStore />
   </MonoDevelop.Ide.DebuggingService.Breakpoints>
   <MonoDevelop.Ide.DebuggingService.PinnedWatches />
 </Properties>

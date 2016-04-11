@@ -15,6 +15,7 @@ using Foundation;
 
 using DataModel;
 
+using Newtonsoft.Json;
 
 namespace MicrosoftBuildExtractor 
 {
@@ -63,14 +64,16 @@ namespace MicrosoftBuildExtractor
             all.Updated = "11/11/11";
 
             // save to JSON
-            MemoryStream stream1 = new MemoryStream();
-            DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(SessionsDesc));
-            ser.WriteObject(stream1, all);
-
-            stream1.Position = 0;
-            StreamReader sr = new StreamReader(stream1);
-
-            return sr.ReadToEnd();
+            string json = JsonConvert.SerializeObject(all, Formatting.Indented);
+            return json;
+//            MemoryStream stream1 = new MemoryStream();
+//            DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(SessionsDesc));
+//            ser.WriteObject(stream1, all);
+//
+//            stream1.Position = 0;
+//            StreamReader sr = new StreamReader(stream1);
+//
+//            return sr.ReadToEnd();
         }
 
         async Task extract() {
