@@ -58,7 +58,8 @@ namespace SessionsFinder
                     using (System.IO.StreamWriter file = 
                         new System.IO.StreamWriter(@path))
                     {
-                        file.Write(Results.TextStorage.ToString());
+//                        var range = new NSRange(0, Results.TextStorage.Length);
+                        file.Write(Results.Value);
                     }
                     reflectState(State.SAVED);
                 }
@@ -68,8 +69,6 @@ namespace SessionsFinder
         partial void ExtractClicked(Foundation.NSObject sender) {
             reflectState(State.LOADING);
             IExtractor e = new Build2016();
-            label.StringValue = string.Format("... extracting data from {0}", e.GetId());
-
             Task.Run(() => {
                 loadAndParse(e);
             });
@@ -88,9 +87,10 @@ namespace SessionsFinder
             // task
             Dictionary<String, Session> sessions = extractor.GetSessions(updater);
             var data = extractor.SerialiseToJson(updater, sessions);
-            var contents = new NSMutableAttributedString(data);
             InvokeOnMainThread (() => {
-                Results.TextStorage.SetString(contents);
+                Results.RichText = false;
+                var ts = new NSTextStorage(data);
+                Results.LayoutManager.ReplaceTextStorage(ts);
                 reflectState(State.LOADED);
                 label.StringValue = "Done.";
             });

@@ -85,6 +85,7 @@
     </Compile>
     <Compile Include="Parser.cs" />
     <Compile Include="Model.cs" />
+    <Compile Include="TimeUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <InterfaceDefinition Include="Main.storyboard" />

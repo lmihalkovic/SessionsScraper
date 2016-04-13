@@ -33,20 +33,23 @@ namespace DataModel
 
     [DataContract(Name="session")]
     public class SessionDesc {
-        [DataMember(Name="id")]
-        public string Id { get; set; } = "";
-
-        [DataMember(Name="year")]
-        public int Year { get; set; } = 0;
-
-        [DataMember(Name="date")]
-        public long Date { get; set; } = 0;
+        [DataMember(Name="uniqueId")]
+        public string UniqueId { get; set; } = "";
 
         [DataMember(Name="title")]
         public string Title { get; set; } = "";
 
         [DataMember(Name="description")]
         public string Description { get; set; } = "";
+
+        [DataMember(Name="year")]
+        public int Year { get; set; } = 0;
+
+        [DataMember(Name="date")]
+        public String Date { get; set; } = "";
+
+        [DataMember(Name="track")]
+        public string Track { get; set; } = "";
 
         [DataMember(Name="url")]
         public string Url { get; set; } = "";

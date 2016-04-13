@@ -4,6 +4,8 @@ using System.Net;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
+using System.Globalization;
+
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
@@ -20,6 +22,7 @@ using Newtonsoft.Json;
 namespace MicrosoftBuildExtractor 
 {
     using SessionsFinder;
+    using ATATimeUtil;
 
      class CBuild {
         public const string BASE = "https://channel9.msdn.com";
@@ -40,6 +43,10 @@ namespace MicrosoftBuildExtractor
             return "Build 2016";
         }
 
+        public int EventYear {
+            get { return 2016; }
+        }
+
         public Dictionary<string, Session> GetSessions(IProgress<ExtractorProgress> updater) {
             extract(updater).Wait();
             return sessions;
@@ -50,18 +57,20 @@ namespace MicrosoftBuildExtractor
             foreach(Session session in sessions.Values) {
                 if (session.VideoURL != null && session.VideoURL != "") {
                     SessionDesc desc = new SessionDesc();
-                    desc.Id = session.UniqueId;
-                    desc.Year = session.Year;
-                    desc.Url = session.VideoURL;
+                    desc.UniqueId = session.UniqueId;
                     desc.Title = session.Title;
-                    desc.Description = session.Summary;
+                    desc.Description = session.Summary ?? "";
+                    desc.Year = session.Year;
+                    desc.Date = session.Date;
+                    desc.Url = session.VideoURL;
+                    desc.Track = session.Track ?? "General";
 
                     list.Add(desc);
                 }
             }
             var all = new SessionsDesc();
             all.Sessions = list.ToArray();
-            all.Updated = "11/11/11";
+            all.Updated = Parser.FormatDate(Parser.ComputeUpdateDate());
 
             // save to JSON
             string json = JsonConvert.SerializeObject(all, Formatting.Indented);
@@ -71,8 +80,9 @@ namespace MicrosoftBuildExtractor
         #region Internal helpers
         async Task extract(IProgress<ExtractorProgress> updater) {
             try {
+                Parser parser = new Parser(this);
                 Task task = Task.Run(async delegate {
-                    Task<Dictionary<string, Session>> tsk = parseSimpleList(updater);
+                    Task<Dictionary<string, Session>> tsk = parseSimpleList(updater, parser);
                     Dictionary<string, Session> sessions = await tsk;
                     this.sessions = sessions;
                     Console.WriteLine("LIST-DONE");
@@ -80,7 +90,7 @@ namespace MicrosoftBuildExtractor
                 task.Wait();
 
                 task = Task.Run(async delegate {
-                    IEnumerable<Task<Session>> asyncOps = from session in sessions.Values select parseSessionDetails(updater, session);
+                    IEnumerable<Task<Session>> asyncOps = from session in sessions.Values select parseSessionDetails(updater, parser, session);
                     await Task.WhenAll(asyncOps);
                     Console.WriteLine("DETAILS-DONE");
                 });
@@ -91,7 +101,7 @@ namespace MicrosoftBuildExtractor
             }
         }
 
-        async Task<Dictionary<string, Session>> parseSimpleList(IProgress<ExtractorProgress> updater) {
+        async Task<Dictionary<string, Session>> parseSimpleList(IProgress<ExtractorProgress> updater, Parser parser) {
             try {
                 var urls = new List<Tuple<String, String>>() {
                     new Tuple<String, String>("Page 1", "https://channel9.msdn.com/Events/Build/2016?sort=status&page=1&direction=asc#tab_sortBy_status") 
@@ -104,11 +114,11 @@ namespace MicrosoftBuildExtractor
 
                 var step = new ExtractorProgress();
                 foreach( var url in urls) {
-                    step.Message = string.Format("Loading {0}", url.Item1);
+                    step.Message = string.Format("{0} : {1}", GetId(),  url.Item1);
                     updater.Report(step);
                     var data = await Loader.LoadPageSource(url.Item2, Constants.AsJSON);
                     var source = data.ToString();
-                    Parser.ProcessList(source, sessions);
+                    parser.ProcessList(source, sessions);
                 }
 
                 return sessions;
@@ -118,13 +128,13 @@ namespace MicrosoftBuildExtractor
             }
         }
 
-        async Task<Session> parseSessionDetails(IProgress<ExtractorProgress> updater, Session session) {
+        async Task<Session> parseSessionDetails(IProgress<ExtractorProgress> updater, Parser parser, Session session) {
             var url = CBuild.BASE + session.UniqueId;
             var data = await Loader.LoadPageSource(url, null);
             updater.Report(new ExtractorProgress(string.Format(" + processing: {0}", session.UniqueId)));
             var source = data?.ToString();
             if(source != null) {                    
-                Parser.ProcessSession(source, session);
+                parser.ProcessSession(source, session);
             }
             return session;
         }
@@ -133,18 +143,20 @@ namespace MicrosoftBuildExtractor
         
     class Parser
     {
-        public Parser()
+        private IExtractor extractor;
+        public Parser(IExtractor extractor)
         {
+            this.extractor = extractor;
         }
             
-        public static void ProcessList(string str, Dictionary<String, Session> sessions)
+        public void ProcessList(string str, Dictionary<String, Session> sessions)
         {
             var source = WebUtility.HtmlDecode(str);
             HtmlDocument doc = new HtmlDocument();
             doc.LoadHtml(source);
 
-            // div[class="entry-meta"]
-            IEnumerable<HtmlNode> nodes = doc.DocumentNode.SelectNodes("//div[@class='entry-meta']");  
+            // selection must be narrow to avoid dups
+            IEnumerable<HtmlNode> nodes = doc.DocumentNode.SelectNodes("//ul[contains(@class,'sessionList')]/descendant::div[@class='entry-meta']");  
             foreach (HtmlNode node in nodes) {
                 var session = new Session();
                 HtmlNode n = null;
@@ -160,7 +172,7 @@ namespace MicrosoftBuildExtractor
                     // track
                     n = ul.FirstDescendantMatching(x => { 
                         return x.Name == "a" && 
-                            (x.ParentNode?.Attributes["class"].Value ?? "") == "grouping sessionType";
+                            (x.ParentNode?.Attributes["class"].Value ?? "") == "grouping level";
                     });
                     session.Track = n?.InnerText;
 
@@ -171,21 +183,24 @@ namespace MicrosoftBuildExtractor
                     });
                     session.SlidesURL = n?.Attributes["href"].Value ?? "";
 
-                    // time
+                    // date
                     n = ul.FirstDescendantMatching(x => { 
                         return x.Name == "time" && 
                             (x.ParentNode?.Attributes["class"].Value ?? "") == "timing date";
                     });
-                    session.Date = n?.FirstChild.InnerText;
-
-                    // 
-                    session.Year = 2016;
-                        
-                    if (sessions.ContainsKey(session.UniqueId)) {
-                        Console.WriteLine($"Duplicate entry: {session.UniqueId}");
-                    } else {
-                        sessions.Add(session.UniqueId, session);
+                    var tm = n?.Attributes["datetime"].Value ?? "";
+                    var tz = n?.Attributes["data-timezonename"].Value ?? "";
+                    if (n != null) {
+                        var t = FormatDate(GetLocalDate(tm, tz));
+                        session.Date = t;
                     }
+
+                    // Year
+                    session.Year = extractor.EventYear;
+
+                    // Add to collection (events should be unique - collision was caused
+                    // by wider-than-required XPath selection in source doc)
+                    sessions.Add(session.UniqueId, session);
 
                 } catch (Exception ex) {
                     Console.WriteLine($"PROBLEM: {ex}");
@@ -193,7 +208,7 @@ namespace MicrosoftBuildExtractor
             }
         }
 
-        public static void ProcessSession(string str, Session session) {
+        public void ProcessSession(string str, Session session) {
             var source = WebUtility.HtmlDecode(str);
             HtmlDocument doc = new HtmlDocument();
             doc.LoadHtml(source);
@@ -215,6 +230,29 @@ namespace MicrosoftBuildExtractor
 
             }
 
+        }
+
+
+        public static String FormatDate(DateTime date) {
+            return date.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        public static DateTime GetLocalDate(String zuluDate, String tz) {
+            var date = DateTime.ParseExact(zuluDate,
+                "yyyy-MM-dd'T'HH:mm:sszzz",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal |
+                DateTimeStyles.AdjustToUniversal);
+            
+            var zone = ATATimeUtil.TimeUtil.WindowTimeZoneToTimeZoneInfo(tz);
+
+            var localTime = TimeZoneInfo.ConvertTimeFromUtc(date, zone);
+            return localTime;        
+        }
+
+        public static DateTime ComputeUpdateDate() {
+            var referenceDate = DateTime.UtcNow;
+            return referenceDate;
         }
 
     }
@@ -245,6 +283,7 @@ namespace SessionsFinder
         Dictionary<String, Session> GetSessions(IProgress<ExtractorProgress> updater);
         String SerialiseToJson(IProgress<ExtractorProgress> updater, Dictionary<string, Session> sessions);
         String GetId();
+        int EventYear { get; } 
     }
 
     public class Loader
@@ -259,13 +298,12 @@ namespace SessionsFinder
         {
             var session = NSUrlSession.SharedSession;       
 
+            // TODO convert to straight .NET
             NSUrl target = NSUrl.FromString(URL);
             NSMutableUrlRequest request = new NSMutableUrlRequest(target);
             request.HttpMethod = "GET";    
             request["Content-Type"] = Type ?? "text/html";
 
-            //  string json = JsonConvert.SerializeObject(m);    
-            //  var body = NSData.FromString(json);
             var TaskRequest = session.CreateDataTaskAsync(request, out Task);       
             Task.Resume();
 
